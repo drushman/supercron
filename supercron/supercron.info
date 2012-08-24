@@ -1,0 +1,5 @@
+name = SuperCron
+description = Get absolute control over Cron tasks
+core = 6.x
+version = 6.x-1.0
+
