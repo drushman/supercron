@@ -5,7 +5,7 @@
 * @file
 * The supercron module functions.
 */
-
+define(SUPERCRON_ADMIN_PERMISSION, 'administer supercron');// add path
 define(SUPERCRON_INVOKE_ALL, 'admin/reports/status/run-supercron');
 
 // Variable constants; duplicating literals is an open invitation to bugs
@@ -23,7 +23,7 @@ function supercron_menu() {
     'description' => t('Configure how Cron behaves, which cron hooks are called and in what order, capture debugging information and parallelize tasks.'),    
     'page callback' => 'drupal_get_form',
     'page arguments' => array('supercron_settings'),
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     );
   $items['admin/settings/supercron/'] = array(
     'title' => t('Settings'),
@@ -34,20 +34,20 @@ function supercron_menu() {
     'title' => t('Firewall'),
     'page callback' => 'drupal_get_form',
     'page arguments' => array('supercron_firewall_form'),
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_LOCAL_TASK,
     'parent' => 'admin/settings/supercron'
     );
   $items['admin/settings/supercron/firewall/delete'] = array(
     'page callback' => 'supercron_firewall_delete',
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_CALLBACK
     );
   $items['admin/settings/supercron/invocation'] = array(
     'title' => t('Crontab Configuration'),
     'page callback' => 'drupal_get_form',
     'page arguments' => array('supercron_invocation_form'),
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_LOCAL_TASK,  
     'weight' => 10,
     'parent' => 'admin/settings/supercron'
@@ -56,7 +56,7 @@ function supercron_menu() {
     'title' => t('Cron output in module: '),
     'page callback' => 'supercron_output',
     'page arguments' => array(4),
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_CALLBACK,
     );
   
@@ -64,7 +64,7 @@ function supercron_menu() {
     'title' => t('Cron exceptions in module: '),
     'page callback' => 'supercron_exception',
     'page arguments' => array(4),
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_CALLBACK,
     );
   
@@ -72,20 +72,20 @@ function supercron_menu() {
     'title' => t('Call individual cron handlers'),
     'page callback' => 'supercron_invoke_one',
     'page arguments' => array(4, 5),
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_CALLBACK,
     );
   
   $items[SUPERCRON_INVOKE_ALL] = array(
     'page callback' => 'supercron_drupal_cron_run',
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_CALLBACK,
     'file' => 'cron.inc',
     );
   
   $items['admin/reports/status/run-cron'] = array(
     'page callback' => 'supercron_drupal_cron_run',
-    'access arguments' => array('access administration pages'),
+    'access arguments' => array(SUPERCRON_ADMIN_PERMISSION),
     'type' => MENU_CALLBACK,
     'file' => 'cron.inc',
     );
@@ -237,6 +237,7 @@ function supercron_firewall_form(&$form_state) {
     $form['mode_field']['insert']['submit'] = array(
       '#type' => 'submit',
       '#value' => t('Insert'),
+    	'#validate' => array('supercron_firewall_add_validate'),
       '#submit' => array('supercron_firewall_add')
       );
     
@@ -249,11 +250,11 @@ function supercron_firewall_form(&$form_state) {
     $result = db_query('SELECT * FROM {supercron_ips}');
     while ($ip = db_fetch_object($result)) {
       if ($firewall_enabled) {
-        $form[$ip->iid]['title'] = array('#value' => $ip->ip);
-        $form[$ip->iid]['delete'] = array('#value' => l(t('delete'), "admin/settings/supercron/firewall/delete/" . $ip->iid));
+        $form[$ip->iid]['title'] = array('#value' => check_plain($ip->ip));
+        $form[$ip->iid]['delete'] = array('#value' => l(t('delete'), "admin/settings/supercron/firewall/delete/" . check_plain($ip->iid)));
       }
       else {
-        $form[$ip->iid]['title'] = array('#value' => $ip->ip);
+        $form[$ip->iid]['title'] = array('#value' => check_plain($ip->ip));
         $form[$ip->iid]['delete'] = array('#value' => '<span style="text-decoration: line-through;">' . t('delete') . '</span>');
       }
     }
@@ -261,11 +262,22 @@ function supercron_firewall_form(&$form_state) {
   }
   return $form;
 }
-
+function supercron_firewall_add_validate($form, &$form_state) {
+	  	if (!preg_match('/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/', $form_state['values']['ip'])) {
+		    form_set_error('ip', t('Invalid IP address.'));
+		  }
+}
+/*
 function supercron_firewall_add() {
   db_query("INSERT INTO {supercron_ips} (ip) VALUES ('%s')", $_POST['ip']);
   drupal_set_message("IP $_POST[ip] added.");
 }
+*/
+function supercron_firewall_add($form, &$form_state) {
+	db_query("INSERT INTO {supercron_ips} (ip) VALUES ('%s')", $form_state['values']['ip']);
+	drupal_set_message(t("IP %ip added.", array('%ip' => $form_state['values']['ip'])));
+}
+
 
 function supercron_firewall_enable() {
   $enabled = variable_get(SUPERCRON_FIREWALL_ENABLED_VARIABLE, FALSE);
@@ -273,7 +285,7 @@ function supercron_firewall_enable() {
   drupal_set_message('SuperCron firewall '. (!$enabled?t('enabled'):t('disabled')).'.');
 }
 function supercron_firewall_save() {
-  variable_set(SUPERCRON_FIREWALL_MODE_VARIABLE, $_POST['mode']);
+  variable_set(SUPERCRON_FIREWALL_MODE_VARIABLE, $form_state['values']['mode']);
   drupal_set_message(t('SuperCron firewall mode changed.'));
 }
 
@@ -500,7 +512,7 @@ function supercron_module_add_output($module, $output) {
 function supercron_output($id) {
   $module = db_fetch_array(db_query_range("SELECT * FROM {supercron_enabled_mods} WHERE id=%d", (int)$id, 0, 1));
   drupal_set_title(drupal_get_title() . $module["module_name"]);
-  $output = $module["output"];
+  $output = filter_admin_xss($module["output"]);
   return $output;
 }
 
@@ -605,4 +617,10 @@ function supercron_module_invoke_all_cron() {
   variable_del('cron_semaphore');  
   variable_set('cron_last', time());
   return TRUE;
+}
+/**
+ * Implement hook_perm().
+ */
+function supercron_perm() {
+	return array(SUPERCRON_ADMIN_PERMISSION);
 }
